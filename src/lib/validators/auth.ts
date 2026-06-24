@@ -22,7 +22,7 @@ export const registerSchema = z
       .string()
       .min(2, "Organization name must be at least 2 characters"),
     acceptTerms: z.literal(true, {
-      errorMap: () => ({ message: "You must accept the terms of service" }),
+      message: "You must accept the terms of service",
     }),
   })
   .refine((data) => data.password === data.confirmPassword, {

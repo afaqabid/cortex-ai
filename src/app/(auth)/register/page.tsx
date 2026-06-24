@@ -16,7 +16,7 @@ import {
   Check,
   X,
 } from "lucide-react";
-import { signUp } from "@/lib/auth-client";
+import { authClient, signUp } from "@/lib/auth-client";
 import { slugify } from "@/lib/utils";
 
 export default function RegisterPage() {
@@ -66,6 +66,22 @@ export default function RegisterPage() {
       if (result.error) {
         toast.error(result.error.message || "Registration failed");
         return;
+      }
+
+      // Create organization if name is provided
+      if (formData.organizationName) {
+        try {
+          const orgResult = await authClient.organization.create({
+            name: formData.organizationName,
+            slug: slugify(formData.organizationName),
+          });
+          if (orgResult.error) {
+            toast.warning("Account created, but organization creation failed. You can set it up inside.");
+          }
+        } catch (orgError) {
+          console.error("Org creation error:", orgError);
+          toast.warning("Account created, but organization setup encountered an issue.");
+        }
       }
 
       toast.success("Account created successfully!");
