@@ -12,6 +12,7 @@ export const createProjectSchema = z.object({
   clientId: z.string().optional(),
   teamId: z.string().optional(),
   color: z.string().optional(),
+  createdById: z.string().optional(),
 });
 
 export const updateProjectSchema = createProjectSchema.partial();

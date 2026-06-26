@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, CheckSquare, Clock, AlertCircle, X, Loader2, Trash2 } from "lucide-react";
+import { Plus, Search, CheckSquare, Clock, AlertCircle, X, Loader2, Trash2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   TASK_STATUS_LABELS,
@@ -12,11 +12,13 @@ import {
 } from "@/lib/constants";
 import { useTasks } from "@/hooks/queries/use-tasks";
 import { useProjects } from "@/hooks/queries/use-projects";
+import { useTeam } from "@/hooks/queries/use-team";
 import { toast } from "sonner";
 
 export default function TasksPage() {
   const { tasks, isLoadingTasks, createTask, deleteTask, updateTask } = useTasks();
   const { projects } = useProjects();
+  const { members } = useTeam();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [view, setView] = useState<"all" | "my">("all");
@@ -30,6 +32,7 @@ export default function TasksPage() {
     priority: "MEDIUM" as any,
     dueDate: "",
     projectId: "",
+    assigneeId: "",
   });
 
   const handleOpenCreate = () => {
@@ -40,6 +43,7 @@ export default function TasksPage() {
       priority: "MEDIUM",
       dueDate: "",
       projectId: projects[0]?.id || "",
+      assigneeId: "",
     });
     setIsFormOpen(true);
   };
@@ -186,8 +190,20 @@ export default function TasksPage() {
               </button>
               <div className="flex-1 min-w-0">
                 <p className={cn("text-sm font-medium", task.status === "DONE" && "line-through text-muted-foreground")}>{task.title}</p>
-                <p className="text-xs text-muted-foreground">{task.project?.name || "No Project"}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-muted-foreground">{task.project?.name || "No Project"}</p>
+                  {task.assignee && (
+                    <span className="text-[10px] text-muted-foreground/80 flex items-center gap-1">
+                      · Assigned: {task.assignee.name}
+                    </span>
+                  )}
+                </div>
               </div>
+              {task.assignee && (
+                <div className="h-6 w-6 rounded-full bg-brand-500/10 text-brand-500 flex items-center justify-center font-bold text-[10px] shrink-0 select-none" title={`Assigned to ${task.assignee.name}`}>
+                  {task.assignee.name[0].toUpperCase()}
+                </div>
+              )}
               <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: `${TASK_PRIORITY_COLORS[task.priority]}15`, color: TASK_PRIORITY_COLORS[task.priority] }}>
                 {TASK_PRIORITY_LABELS[task.priority]}
               </span>
@@ -287,9 +303,26 @@ export default function TasksPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">Due Date</label>
-                  <input type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">Due Date</label>
+                    <input type="date" value={formData.dueDate} onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">Assignee</label>
+                    <select
+                      value={formData.assigneeId}
+                      onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    >
+                      <option value="">Unassigned</option>
+                      {members.map((member: any) => (
+                        <option key={member.user?.id} value={member.user?.id}>
+                          {member.user?.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="pt-4 flex gap-3">

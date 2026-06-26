@@ -7,10 +7,12 @@ import { Plus, Search, Grid3X3, List, Calendar, MoreHorizontal, Loader2, X, Tras
 import { cn } from "@/lib/utils";
 import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/constants";
 import { useProjects } from "@/hooks/queries/use-projects";
+import { useTeam } from "@/hooks/queries/use-team";
 import { toast } from "sonner";
 
 export default function ProjectsPage() {
   const { projects, isLoadingProjects, createProject, deleteProject } = useProjects();
+  const { members } = useTeam();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -25,6 +27,7 @@ export default function ProjectsPage() {
     endDate: "",
     budget: 0,
     color: "#6366f1",
+    createdById: "",
   });
 
   const handleOpenCreate = () => {
@@ -36,6 +39,7 @@ export default function ProjectsPage() {
       endDate: "",
       budget: 0,
       color: "#6366f1",
+      createdById: "",
     });
     setIsFormOpen(true);
   };
@@ -220,10 +224,12 @@ export default function ProjectsPage() {
                             <Building2 className="h-3 w-3" />
                             {project.client?.company || "No Client"}
                           </div>
-                          {project.endDate && (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(project.endDate).toLocaleDateString()}
+                          {project.createdBy && (
+                            <div className="flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded-full text-[10px]" title={`Project Lead: ${project.createdBy.name}`}>
+                              <div className="h-3.5 w-3.5 rounded-full bg-brand-500/10 text-brand-500 flex items-center justify-center font-bold text-[8px]">
+                                {project.createdBy.name[0].toUpperCase()}
+                              </div>
+                              <span className="max-w-[70px] truncate">{project.createdBy.name}</span>
                             </div>
                           )}
                         </div>
@@ -253,6 +259,11 @@ export default function ProjectsPage() {
                       <span className="text-xs text-muted-foreground shrink-0 hidden lg:block">
                         {project.client?.company || "No Client"}
                       </span>
+                      {project.createdBy && (
+                        <span className="text-xs text-muted-foreground shrink-0 hidden md:block">
+                          Lead: {project.createdBy.name}
+                        </span>
+                      )}
                       <button
                         className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-red-500 hover:bg-red-500/10 transition-all cursor-pointer"
                         onClick={(e) => handleDelete(project.id, e)}
@@ -367,14 +378,31 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">Budget ($)</label>
-                  <input
-                    type="number"
-                    value={formData.budget}
-                    onChange={(e) => setFormData({ ...formData, budget: Number(e.target.value) })}
-                    className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">Budget ($)</label>
+                    <input
+                      type="number"
+                      value={formData.budget}
+                      onChange={(e) => setFormData({ ...formData, budget: Number(e.target.value) })}
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">Project Lead</label>
+                    <select
+                      value={formData.createdById}
+                      onChange={(e) => setFormData({ ...formData, createdById: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    >
+                      <option value="">Default (Current User)</option>
+                      {members.map((member: any) => (
+                        <option key={member.user?.id} value={member.user?.id}>
+                          {member.user?.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="pt-4 flex gap-3">

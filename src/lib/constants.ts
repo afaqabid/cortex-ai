@@ -8,6 +8,10 @@ export const USER_ROLES = {
   MANAGER: "MANAGER",
   EMPLOYEE: "EMPLOYEE",
   CLIENT: "CLIENT",
+  TEAM_LEAD: "TEAM_LEAD",
+  DEVELOPER: "DEVELOPER",
+  DESIGNER: "DESIGNER",
+  QA: "QA",
 } as const;
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -16,12 +20,20 @@ export const ROLE_LABELS: Record<string, string> = {
   MANAGER: "Manager",
   EMPLOYEE: "Employee",
   CLIENT: "Client",
+  TEAM_LEAD: "Team Lead",
+  DEVELOPER: "Developer",
+  DESIGNER: "Designer",
+  QA: "QA Specialist",
 };
 
 export const ROLE_HIERARCHY: Record<string, number> = {
   OWNER: 4,
   ADMIN: 3,
   MANAGER: 2,
+  TEAM_LEAD: 2,
+  DEVELOPER: 1,
+  DESIGNER: 1,
+  QA: 1,
   EMPLOYEE: 1,
   CLIENT: 0,
 };

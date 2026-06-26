@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -20,7 +20,23 @@ import { authClient, signUp } from "@/lib/auth-client";
 import { slugify } from "@/lib/utils";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-48 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") || searchParams.get("callbackUrl");
+  const isInvited = redirectTo && redirectTo.includes("/invite/");
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -68,8 +84,8 @@ export default function RegisterPage() {
         return;
       }
 
-      // Create organization if name is provided
-      if (formData.organizationName) {
+      // Create organization if name is provided (and user is not invited)
+      if (formData.organizationName && !isInvited) {
         try {
           const orgResult = await authClient.organization.create({
             name: formData.organizationName,
@@ -77,6 +93,10 @@ export default function RegisterPage() {
           });
           if (orgResult.error) {
             toast.warning("Account created, but organization creation failed. You can set it up inside.");
+          } else if (orgResult.data) {
+            await authClient.organization.setActive({
+              organizationId: orgResult.data.id,
+            });
           }
         } catch (orgError) {
           console.error("Org creation error:", orgError);
@@ -85,7 +105,7 @@ export default function RegisterPage() {
       }
 
       toast.success("Account created successfully!");
-      router.push("/dashboard");
+      router.push(redirectTo || "/dashboard");
       router.refresh();
     } catch {
       toast.error("Something went wrong. Please try again.");
@@ -99,7 +119,9 @@ export default function RegisterPage() {
       <div className="mb-8">
         <h2 className="text-2xl font-bold tracking-tight">Create account</h2>
         <p className="text-muted-foreground mt-2">
-          Get started with your AI-powered workspace
+          {isInvited 
+            ? "Create an account to join the organization" 
+            : "Get started with your AI-powered workspace"}
         </p>
       </div>
 
@@ -146,40 +168,42 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Organization */}
-        <div>
-          <label
-            htmlFor="organization"
-            className="block text-sm font-medium mb-1.5"
-          >
-            Organization Name
-          </label>
-          <div className="relative">
-            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              id="organization"
-              type="text"
-              required
-              value={formData.organizationName}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  organizationName: e.target.value,
-                })
-              }
-              className="flex h-10 w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
-              placeholder="Acme Inc."
-            />
+        {/* Organization (Only show if not invited) */}
+        {!isInvited && (
+          <div>
+            <label
+              htmlFor="organization"
+              className="block text-sm font-medium mb-1.5"
+            >
+              Organization Name
+            </label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                id="organization"
+                type="text"
+                required={!isInvited}
+                value={formData.organizationName}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    organizationName: e.target.value,
+                  })
+                }
+                className="flex h-10 w-full rounded-lg border border-input bg-background pl-10 pr-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors"
+                placeholder="Acme Inc."
+              />
+            </div>
+            {formData.organizationName && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Workspace URL: cortexai.com/
+                <span className="text-brand-500">
+                  {slugify(formData.organizationName)}
+                </span>
+              </p>
+            )}
           </div>
-          {formData.organizationName && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Workspace URL: cortexai.com/
-              <span className="text-brand-500">
-                {slugify(formData.organizationName)}
-              </span>
-            </p>
-          )}
-        </div>
+        )}
 
         {/* Password */}
         <div>
@@ -349,7 +373,7 @@ export default function RegisterPage() {
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={redirectTo ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login"}
           className="font-semibold text-brand-500 hover:text-brand-600 transition-colors"
         >
           Sign in

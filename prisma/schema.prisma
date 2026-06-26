@@ -22,6 +22,10 @@ enum UserRole {
   MANAGER
   EMPLOYEE
   CLIENT
+  TEAM_LEAD
+  DEVELOPER
+  DESIGNER
+  QA
 }
 
 enum OrgPlan {
@@ -60,6 +64,7 @@ model Organization {
   embeddings    Embedding[]
   aiConversations AIConversation[]
   expenses      Expense[]
+  invitations   Invitation[]
 
   @@index([slug])
 }
@@ -94,19 +99,21 @@ model User {
   uploadedFiles  File[]
   aiConversations AIConversation[]
   aiMessages     AIMessage[]
+  invitationsSent Invitation[]
 
   @@index([email])
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  userId               String
+  token                String   @unique
+  expiresAt            DateTime
+  ipAddress            String?
+  userAgent            String?
+  activeOrganizationId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -144,6 +151,22 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@index([identifier])
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String
+  status         String   // "pending", "accepted", "rejected", "canceled"
+  expiresAt      DateTime
+  inviterId      String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 model Member {

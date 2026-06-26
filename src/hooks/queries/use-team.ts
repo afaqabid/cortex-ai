@@ -16,5 +16,6 @@ export function useTeam() {
     members: teamQuery.data || [],
     isLoadingTeam: teamQuery.isLoading,
     teamError: teamQuery.error,
+    refetch: teamQuery.refetch,
   };
 }

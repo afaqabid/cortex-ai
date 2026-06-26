@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -9,7 +9,22 @@ import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-48 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") || searchParams.get("callbackUrl");
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -34,7 +49,7 @@ export default function LoginPage() {
       }
 
       toast.success("Welcome back!");
-      router.push("/dashboard");
+      router.push(redirectTo || "/dashboard");
       router.refresh();
     } catch {
       toast.error("Something went wrong. Please try again.");
@@ -47,7 +62,7 @@ export default function LoginPage() {
     try {
       await signIn.social({
         provider,
-        callbackURL: "/dashboard",
+        callbackURL: redirectTo || "/dashboard",
       });
     } catch {
       toast.error(`Failed to sign in with ${provider}`);
@@ -147,7 +162,7 @@ export default function LoginPage() {
               Password
             </label>
             <Link
-              href="/forgot-password"
+              href={redirectTo ? `/forgot-password?redirectTo=${encodeURIComponent(redirectTo)}` : "/forgot-password"}
               className="text-xs text-brand-500 hover:text-brand-600 transition-colors"
             >
               Forgot password?
@@ -216,7 +231,7 @@ export default function LoginPage() {
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
         <Link
-          href="/register"
+          href={redirectTo ? `/register?redirectTo=${encodeURIComponent(redirectTo)}` : "/register"}
           className="font-semibold text-brand-500 hover:text-brand-600 transition-colors"
         >
           Create account

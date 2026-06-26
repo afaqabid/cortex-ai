@@ -7,6 +7,7 @@ const publicPaths = [
   "/forgot-password",
   "/reset-password",
   "/api/auth",
+  "/invite",
 ];
 
 function isPublicPath(pathname: string): boolean {

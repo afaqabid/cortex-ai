@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const project = await ProjectService.createProject(
       {
         ...result.data,
-        createdById: session.user.id,
+        createdById: result.data.createdById || session.user.id,
       },
       organizationId
     );

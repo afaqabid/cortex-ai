@@ -3,6 +3,7 @@
 import { useState, use } from "react";
 import { useProjects } from "@/hooks/queries/use-projects";
 import { useTasks } from "@/hooks/queries/use-tasks";
+import { useTeam } from "@/hooks/queries/use-team";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar,
@@ -42,6 +43,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
   const { getProjectQuery, updateProject } = useProjects();
   const { data: project, isLoading: isLoadingProject } = getProjectQuery(id);
   const { tasks, isLoadingTasks, createTask, updateTask, deleteTask } = useTasks(id);
+  const { members } = useTeam();
 
   const [activeTab, setActiveTab] = useState<TabType>("overview");
 
@@ -54,6 +56,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
     status: "TODO" as any,
     dueDate: "",
     startDate: "",
+    assigneeId: "",
   });
   const [isCreatingTask, setIsCreatingTask] = useState(false);
 
@@ -92,6 +95,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         projectId: id,
         dueDate: taskForm.dueDate || undefined,
         startDate: taskForm.startDate || undefined,
+        assigneeId: taskForm.assigneeId || undefined,
       });
       toast.success("Task created successfully");
       setIsTaskFormOpen(false);
@@ -102,6 +106,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
         status: "TODO",
         dueDate: "",
         startDate: "",
+        assigneeId: "",
       });
     } catch {
       toast.error("Failed to create task");
@@ -318,10 +323,22 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                       <p className={cn("text-xs font-semibold", task.status === "DONE" && "line-through text-muted-foreground")}>
                         {task.title}
                       </p>
-                      {task.description && (
-                        <p className="text-[10px] text-muted-foreground truncate max-w-[400px] mt-0.5">{task.description}</p>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {task.description && (
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[250px]">{task.description}</p>
+                        )}
+                        {task.assignee && (
+                          <span className="text-[9px] text-muted-foreground/80">
+                            · Assigned: {task.assignee.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    {task.assignee && (
+                      <div className="h-5 w-5 rounded-full bg-brand-500/10 text-brand-500 flex items-center justify-center font-bold text-[9px] shrink-0 select-none" title={`Assigned to ${task.assignee.name}`}>
+                        {task.assignee.name[0].toUpperCase()}
+                      </div>
+                    )}
                     <span
                       className="text-[9px] font-bold px-2 py-0.5 rounded"
                       style={{
@@ -476,6 +493,21 @@ export default function ProjectDetailPage({ params }: ProjectDetailPageProps) {
                       className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-xs"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1 text-muted-foreground">Assignee</label>
+                  <select
+                    value={taskForm.assigneeId}
+                    onChange={(e) => setTaskForm({ ...taskForm, assigneeId: e.target.value })}
+                    className="flex h-9 w-full rounded-lg border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                  >
+                    <option value="">Unassigned</option>
+                    {members.map((member: any) => (
+                      <option key={member.user?.id} value={member.user?.id}>
+                        {member.user?.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="pt-4 flex gap-3">
                   <button

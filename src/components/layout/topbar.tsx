@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { authClient, signOut } from "@/lib/auth-client";
+import { SignOutConfirmModal } from "@/components/shared/sign-out-modal";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -39,6 +41,36 @@ const breadcrumbMap: Record<string, string> = {
 
 export function Topbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const { data: session } = authClient.useSession();
+
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length === 0) return "U";
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const userInitials = session?.user?.name ? getInitials(session.user.name) : "CA";
+  const userName = session?.user?.name || "User";
+  const userEmail = session?.user?.email || "user@cortexai.com";
+
+  const handleSignOutConfirm = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      router.push("/login");
+    } catch (error) {
+      console.error("Sign out failed:", error);
+    } finally {
+      setIsSigningOut(false);
+      setIsSignOutOpen(false);
+    }
+  };
+
   const { toggleMobileOpen } = useSidebarStore();
   const { theme, setTheme, toggleCommandPalette } = useAppStore();
   const { unreadCount, togglePanel } = useNotificationStore();
@@ -86,15 +118,16 @@ export function Topbar() {
 
       {/* Right — Search, Theme, Notifications, User */}
       <div className="flex items-center gap-1.5">
-        {/* Search button */}
         <button
           onClick={toggleCommandPalette}
-          className="flex h-8 items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors md:w-64 md:justify-between md:px-3"
         >
-          <Search className="h-3.5 w-3.5" />
-          <span className="hidden md:inline">Search...</span>
-          <kbd className="hidden md:inline-flex h-5 items-center gap-0.5 rounded border border-border bg-background px-1.5 text-[10px] font-medium text-muted-foreground">
-            ⌘K
+          <div className="flex items-center gap-2">
+            <Search className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden md:inline text-xs">Search...</span>
+          </div>
+          <kbd className="hidden md:inline-flex h-5 items-center gap-0.5 rounded border border-border bg-background px-1.5 text-[9px] font-medium text-muted-foreground select-none">
+            Ctrl + K or ⌘K
           </kbd>
         </button>
 
@@ -131,9 +164,13 @@ export function Topbar() {
         <div className="relative">
           <button
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/10 text-brand-500 hover:bg-brand-500/20 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-500/10 text-brand-500 hover:bg-brand-500/20 transition-colors overflow-hidden"
           >
-            <span className="text-xs font-bold">CA</span>
+            {session?.user?.image ? (
+              <img src={session.user.image} alt={userName} className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold">{userInitials}</span>
+            )}
           </button>
 
           <AnimatePresence>
@@ -151,9 +188,9 @@ export function Topbar() {
                   className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-popover p-1.5 shadow-lg z-50"
                 >
                   <div className="px-3 py-2 border-b border-border mb-1">
-                    <p className="text-sm font-medium">Demo User</p>
-                    <p className="text-xs text-muted-foreground">
-                      demo@cortexai.com
+                    <p className="text-sm font-medium">{userName}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {userEmail}
                     </p>
                   </div>
                   <a
@@ -163,9 +200,10 @@ export function Topbar() {
                     Settings
                   </a>
                   <button
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
                     onClick={() => {
                       setIsUserMenuOpen(false);
+                      setIsSignOutOpen(true);
                     }}
                   >
                     Sign out
@@ -176,6 +214,13 @@ export function Topbar() {
           </AnimatePresence>
         </div>
       </div>
+
+      <SignOutConfirmModal
+        isOpen={isSignOutOpen}
+        onClose={() => setIsSignOutOpen(false)}
+        onConfirm={handleSignOutConfirm}
+        isProcessing={isSigningOut}
+      />
     </header>
   );
 }

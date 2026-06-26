@@ -1,7 +1,9 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { SignOutConfirmModal } from "@/components/shared/sign-out-modal";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -98,6 +100,23 @@ const navSections: { title: string; items: NavItem[] }[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  const handleSignOutConfirm = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      router.push("/login");
+    } catch (error) {
+      console.error("Sign out failed:", error);
+    } finally {
+      setIsSigningOut(false);
+      setIsSignOutOpen(false);
+    }
+  };
+
   const {
     isCollapsed,
     toggleCollapsed,
@@ -326,7 +345,7 @@ export function Sidebar() {
             {!isCollapsed && <span>Settings</span>}
           </Link>
           <button
-            onClick={() => signOut()}
+            onClick={() => setIsSignOutOpen(true)}
             className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-sidebar-foreground/70 hover:text-red-500 hover:bg-red-500/10 transition-colors"
             title={isCollapsed ? "Sign out" : undefined}
           >
@@ -335,6 +354,13 @@ export function Sidebar() {
           </button>
         </div>
       </motion.aside>
+
+      <SignOutConfirmModal
+        isOpen={isSignOutOpen}
+        onClose={() => setIsSignOutOpen(false)}
+        onConfirm={handleSignOutConfirm}
+        isProcessing={isSigningOut}
+      />
     </>
   );
 }
