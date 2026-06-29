@@ -80,8 +80,7 @@ export default function InvitePage({ params }: InvitePageProps) {
         organizationId: invitation.organizationId,
       });
 
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = "/dashboard";
     } catch (err) {
       console.error("Accept invitation error:", err);
       toast.error("An unexpected error occurred while accepting the invitation.");

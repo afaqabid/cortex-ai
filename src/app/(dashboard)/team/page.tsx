@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTeam } from "@/hooks/queries/use-team";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useOrganization } from "@/hooks/use-organization";
@@ -31,6 +31,16 @@ export default function TeamPage() {
   const [isRemovingMember, setIsRemovingMember] = useState<string | null>(null);
 
   const canManage = checkPermission("members:manage");
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      refetchTeam();
+    };
+    window.addEventListener("team-member-updated", handleUpdate);
+    return () => {
+      window.removeEventListener("team-member-updated", handleUpdate);
+    };
+  }, [refetchTeam]);
 
   const getRoleIcon = (role: string) => {
     if (role === "OWNER" || role === "ADMIN") {

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient, signOut } from "@/lib/auth-client";
 import { SignOutConfirmModal } from "@/components/shared/sign-out-modal";
 import { motion, AnimatePresence } from "framer-motion";
+import { NotificationPanel } from "./notification-panel";
 import {
   Search,
   Bell,
@@ -45,6 +46,24 @@ export function Topbar() {
   const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { data: session } = authClient.useSession();
+
+  // Fetch initial notifications count and list
+  useEffect(() => {
+    async function fetchNotifications() {
+      try {
+        const res = await fetch("/api/v1/notifications");
+        if (res.ok) {
+          const data = await res.json();
+          useNotificationStore.getState().setNotifications(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch initial notifications:", err);
+      }
+    }
+    if (session) {
+      fetchNotifications();
+    }
+  }, [session]);
 
   const getInitials = (name: string) => {
     if (!name) return "U";
@@ -144,21 +163,25 @@ export function Topbar() {
         </button>
 
         {/* Notifications */}
-        <button
-          onClick={togglePanel}
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white"
-            >
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </motion.span>
-          )}
-        </button>
+        <div className="relative">
+          <button
+            id="notification-bell-button"
+            onClick={togglePanel}
+            className="relative flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white"
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </motion.span>
+            )}
+          </button>
+          <NotificationPanel />
+        </div>
 
         {/* User menu */}
         <div className="relative">

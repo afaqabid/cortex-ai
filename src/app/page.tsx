@@ -164,7 +164,7 @@ export default function LandingPage() {
             startups, and modern businesses.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 mt-10">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
             <Link
               href="/register"
               className="flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-base font-semibold text-white shadow-xl shadow-brand-500/25 hover:bg-brand-600 hover:shadow-brand-500/40 transition-all"

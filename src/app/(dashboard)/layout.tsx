@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { RealtimeListener } from "@/components/layout/realtime-listener";
 
 export default function DashboardLayout({
   children,
@@ -15,7 +16,7 @@ export default function DashboardLayout({
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
       <CommandPalette />
+      <RealtimeListener />
     </div>
   );
 }
-
