@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send,
   Bot,
@@ -10,11 +10,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  MessageSquare,
   Trash2,
   Loader2,
-  AlertCircle,
-  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,21 +31,146 @@ const SUGGESTED_PROMPTS = [
   { label: "Knowledge Resources", text: "Find guidelines and resources in the knowledge base" },
 ];
 
-export default function AIAssistantPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: `Hello! I am your Cortex AI Assistant. I have secure access to your organization's business metrics. 
+const WELCOME_MESSAGE: Message = {
+  id: "welcome",
+  role: "assistant",
+  content: `Hello! I'm your **Cortex AI Assistant**, powered by Google Gemini. I have secure access to your organization's live data.\n\nI can help you with:\n- 📊 **CRM Leads** — search and summarize your sales pipeline\n- 📁 **Projects** — view active projects, milestones, and tasks\n- 💰 **Invoices** — check billing, revenue, and collections\n- 📖 **Knowledge Base** — find published guides and documents\n- 👥 **Team** — see who's in your organization\n\nHow can I help you today?`,
+};
 
-How can I help you operate your workspace today?`,
-    },
-  ]);
+// ── Simple Markdown Renderer ──────────────────────────────────
+function renderMarkdown(text: string) {
+  // Process the text line by line for block-level elements
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Empty line = spacing
+    if (line.trim() === "") {
+      elements.push(<div key={i} className="h-2" />);
+      i++;
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith("### ")) {
+      elements.push(
+        <h3 key={i} className="text-sm font-bold mt-2 mb-1">
+          {renderInline(line.slice(4))}
+        </h3>
+      );
+      i++;
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      elements.push(
+        <h2 key={i} className="text-base font-bold mt-2 mb-1">
+          {renderInline(line.slice(3))}
+        </h2>
+      );
+      i++;
+      continue;
+    }
+
+    // Bullet lists
+    if (line.match(/^[-*]\s/)) {
+      elements.push(
+        <div key={i} className="flex gap-2 pl-2">
+          <span className="text-muted-foreground shrink-0">•</span>
+          <span>{renderInline(line.replace(/^[-*]\s/, ""))}</span>
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // Numbered lists
+    if (line.match(/^\d+\.\s/)) {
+      const num = line.match(/^(\d+)\./)?.[1];
+      elements.push(
+        <div key={i} className="flex gap-2 pl-2">
+          <span className="text-muted-foreground shrink-0 font-medium">{num}.</span>
+          <span>{renderInline(line.replace(/^\d+\.\s/, ""))}</span>
+        </div>
+      );
+      i++;
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(
+      <p key={i} className="leading-relaxed">
+        {renderInline(line)}
+      </p>
+    );
+    i++;
+  }
+
+  return <>{elements}</>;
+}
+
+// Inline markdown: **bold**, *italic*, `code`, ~~strikethrough~~
+function renderInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  // regex: **bold**, *italic*, `code`
+  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Push text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    if (match[2]) {
+      // **bold**
+      parts.push(
+        <strong key={match.index} className="font-semibold">
+          {match[2]}
+        </strong>
+      );
+    } else if (match[3]) {
+      // *italic*
+      parts.push(
+        <em key={match.index} className="italic">
+          {match[3]}
+        </em>
+      );
+    } else if (match[4]) {
+      // `code`
+      parts.push(
+        <code
+          key={match.index}
+          className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-xs font-mono"
+        >
+          {match[4]}
+        </code>
+      );
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Push remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+// ── Main Component ────────────────────────────────────────────
+export default function AIAssistantPage() {
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({});
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -61,56 +183,23 @@ How can I help you operate your workspace today?`,
     }));
   };
 
-  const streamResponse = (messageId: string, fullText: string, finalMessage: Message) => {
-    let currentIdx = 0;
-    const interval = setInterval(() => {
-      if (currentIdx < fullText.length) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId
-              ? { ...msg, content: fullText.slice(0, currentIdx + 1) }
-              : msg
-          )
-        );
-        currentIdx += 2; // speed up stream slightly
-      } else {
-        clearInterval(interval);
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId
-              ? { ...msg, isStreaming: false, content: fullText }
-              : msg
-          )
-        );
-      }
-    }, 20);
-  };
+  const handleSend = useCallback(
+    async (textToSend: string) => {
+      if (!textToSend.trim() || isLoading) return;
 
-  const handleSend = async (textToSend: string) => {
-    if (!textToSend.trim() || isLoading) return;
+      const userMessageId = `user-${Date.now()}`;
+      const assistantMessageId = `assistant-${Date.now()}`;
 
-    const userMessageId = `user-${Date.now()}`;
-    const assistantMessageId = `assistant-${Date.now()}`;
+      // Add user message
+      const updatedMessages: Message[] = [
+        ...messages,
+        { id: userMessageId, role: "user", content: textToSend },
+      ];
+      setMessages(updatedMessages);
+      setInput("");
+      setIsLoading(true);
 
-    const newMessages: Message[] = [
-      ...messages,
-      { id: userMessageId, role: "user", content: textToSend },
-    ];
-
-    setMessages(newMessages);
-    setInput("");
-    setIsLoading(true);
-
-    try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: textToSend }),
-      });
-
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-
+      // Add placeholder assistant message
       setMessages((prev) => [
         ...prev,
         {
@@ -118,40 +207,116 @@ How can I help you operate your workspace today?`,
           role: "assistant",
           content: "",
           isStreaming: true,
-          toolUsed: data.toolUsed,
-          toolData: data.toolData,
         },
       ]);
 
-      streamResponse(assistantMessageId, data.text, data);
-    } catch (err) {
-      toast.error("Failed to query assistant");
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMessageId,
-          role: "assistant",
-          content: "Sorry, I encountered an error communicating with the AI service. Please try again.",
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      try {
+        // Build messages array for the API (exclude welcome message and streaming flags)
+        const apiMessages = updatedMessages
+          .filter((m) => m.id !== "welcome")
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        abortRef.current = new AbortController();
+
+        const res = await fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: apiMessages }),
+          signal: abortRef.current.signal,
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to get response");
+        }
+
+        // ── Read SSE Stream ──────────────────────────────────
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response body");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process complete SSE lines
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6).trim();
+
+            if (data === "[DONE]") break;
+
+            try {
+              const parsed = JSON.parse(data);
+
+              if (parsed.type === "tool") {
+                // Update assistant message with tool info
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, toolUsed: parsed.toolUsed, toolData: parsed.toolData }
+                      : msg
+                  )
+                );
+              } else if (parsed.type === "content") {
+                // Append streamed content
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, content: msg.content + parsed.content }
+                      : msg
+                  )
+                );
+              }
+            } catch {
+              // Skip malformed JSON
+            }
+          }
+        }
+
+        // Mark streaming complete
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId ? { ...msg, isStreaming: false } : msg
+          )
+        );
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+
+        toast.error(err.message || "Failed to query assistant");
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  isStreaming: false,
+                  content:
+                    "Sorry, I encountered an error. Please check your Gemini API key is set correctly in `.env.local` and try again.",
+                }
+              : msg
+          )
+        );
+      } finally {
+        setIsLoading(false);
+        abortRef.current = null;
+      }
+    },
+    [messages, isLoading]
+  );
 
   const clearChat = () => {
-    if (confirm("Are you sure you want to clear this conversation?")) {
-      setMessages([
-        {
-          id: "welcome",
-          role: "assistant",
-          content: `Hello! I am your Cortex AI Assistant. I have secure access to your organization's business metrics. 
-
-How can I help you operate your workspace today?`,
-        },
-      ]);
-      setExpandedTools({});
-    }
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    setMessages([WELCOME_MESSAGE]);
+    setExpandedTools({});
+    setIsLoading(false);
   };
 
   const getToolDisplayName = (toolName: string) => {
@@ -181,7 +346,7 @@ How can I help you operate your workspace today?`,
             AI Assistant
           </h1>
           <p className="text-xs text-muted-foreground">
-            Ask questions, retrieve workspace reports, and trigger operational services.
+            Powered by Google Gemini · Ask questions, retrieve workspace reports, and get intelligent insights.
           </p>
         </div>
         <button
@@ -223,7 +388,18 @@ How can I help you operate your workspace today?`,
                           : "bg-slate-50 dark:bg-slate-900 border border-border text-slate-800 dark:text-slate-100"
                       }`}
                     >
-                      <div className="whitespace-pre-line">{msg.content}</div>
+                      <div className="space-y-1">
+                        {isUser ? (
+                          <div className="whitespace-pre-line">{msg.content}</div>
+                        ) : (
+                          renderMarkdown(msg.content)
+                        )}
+
+                        {/* Streaming cursor */}
+                        {msg.isStreaming && msg.content.length > 0 && (
+                          <span className="inline-block w-2 h-4 bg-indigo-500 animate-pulse rounded-sm ml-0.5 align-text-bottom" />
+                        )}
+                      </div>
 
                       {/* Tool call executed indicator */}
                       {!isUser && msg.toolUsed && (
@@ -245,7 +421,7 @@ How can I help you operate your workspace today?`,
                           {/* Expanded Tool Data details */}
                           {isExpanded && msg.toolData && (
                             <div className="bg-slate-100 dark:bg-slate-800/80 rounded-lg p-2.5 overflow-x-auto text-[11px] font-mono border border-border text-slate-700 dark:text-slate-300">
-                              {/* If CRM */}
+                              {/* CRM leads */}
                               {msg.toolUsed === "searchCRM" && Array.isArray(msg.toolData) && (
                                 <table className="w-full text-left border-collapse">
                                   <thead>
@@ -269,7 +445,7 @@ How can I help you operate your workspace today?`,
                                 </table>
                               )}
 
-                              {/* If Projects */}
+                              {/* Projects */}
                               {msg.toolUsed === "getProjects" && Array.isArray(msg.toolData) && (
                                 <div className="space-y-2">
                                   {msg.toolData.map((project: any) => (
@@ -286,7 +462,7 @@ How can I help you operate your workspace today?`,
                                 </div>
                               )}
 
-                              {/* If Analytics */}
+                              {/* Analytics */}
                               {msg.toolUsed === "getAnalytics" && (
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
@@ -303,7 +479,7 @@ How can I help you operate your workspace today?`,
                                 </div>
                               )}
 
-                              {/* If Documents */}
+                              {/* Documents */}
                               {msg.toolUsed === "searchDocuments" && Array.isArray(msg.toolData) && (
                                 <div className="space-y-1">
                                   {msg.toolData.map((doc: any) => (
@@ -314,7 +490,7 @@ How can I help you operate your workspace today?`,
                                 </div>
                               )}
 
-                              {/* If Team */}
+                              {/* Team */}
                               {msg.toolUsed === "getTeamWorkload" && Array.isArray(msg.toolData) && (
                                 <div className="space-y-1">
                                   {msg.toolData.map((m: any) => (
@@ -336,14 +512,14 @@ How can I help you operate your workspace today?`,
             })}
 
             {/* Waiting indicator */}
-            {isLoading && (
+            {isLoading && messages[messages.length - 1]?.content === "" && (
               <div className="flex gap-3 max-w-xl">
                 <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-indigo-600 text-white">
                   <Bot className="h-4 w-4" />
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 border border-border rounded-xl p-3.5 flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                  Assistant is analyzing organization data...
+                  Thinking and querying organization data...
                 </div>
               </div>
             )}
@@ -383,7 +559,7 @@ How can I help you operate your workspace today?`,
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about leads, active project details, collections metrics..."
+                placeholder="Ask about leads, projects, invoices, team members..."
                 className="flex-1 bg-background border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 disabled={isLoading}
               />
